@@ -13,9 +13,13 @@ public:
         Operator<float> *out = NULL;
 
 
+        //===================== Embedding Layer ==================
+        out = new EmbeddingLayer<float>(x, vocab_length, embedding_dim, "Embedding");
+
         // ======================= layer 1=======================
-        out = new RecurrentLayer<float>(x, vocab_length, 128, vocab_length, TRUE, "Recur_1");
-        //out = new DeepRecurrentLayer<float>(x, vocab_length, 256, vocab_length, TRUE, "Recur_1");
+        //out = new RecurrentLayer<float>(out, embedding_dim, 64, vocab_length, TRUE, "Recur_1");
+        out = new LSTM2Layer<float>(out, embedding_dim, 512, vocab_length, TRUE, "Recur_1");
+        //out = new GRULayer<float>(out, embedding_dim, 512, vocab_length, TRUE, "Recur_1");
 
         // // ======================= layer 2=======================
         // out = new Linear<float>(out, 5 * 5 * 20, 1024, TRUE, "Fully-Connected_1");

@@ -365,7 +365,7 @@ template<typename DTYPE> void DataLoader<DTYPE>::Push2IdxBuffer(std::vector<int>
 template<typename DTYPE> std::vector<int> *DataLoader<DTYPE>::GetIdxSetFromIdxBuffer() {
     sem_wait(&m_distIdxFull);
     sem_wait(&m_distIdxMutex);
-    
+
     std::vector<int> *setOfIdx = m_splitedIdxBuffer.front();
     m_splitedIdxBuffer.pop();
 
@@ -379,29 +379,32 @@ template<typename DTYPE> Tensor<DTYPE> *DataLoader<DTYPE>::Concatenate(std::queu
     // concatenate all preprocessed data into one tensor
     Tensor<DTYPE> *temp   = NULL;
     int capacity          = 1;
+    int timesize          = 1;
     Tensor<DTYPE> *result = NULL;
-    // We need to consider Timesize
 
     temp     = setOfData.front();
     capacity = temp->GetCapacity();
-    result   = Tensor<DTYPE>::Zeros(1, m_batchSize, 1, 1, capacity);
+    timesize = temp->GetTimeSize();
+    int colsize = capacity/timesize;
+    result   = Tensor<DTYPE>::Zeros(timesize, m_batchSize, 1, 1, colsize);
 
-    // std::cout << result->GetShape() << '\n';
-    // std::cout << setOfData.size() << '\n';
+    Shape *resultShape = result->GetShape();
 
     for (int i = 0; i < m_batchSize; i++) {
         temp = setOfData.front();
         setOfData.pop();
 
-        for (int j = 0; j < capacity; j++) (*result)[i * capacity + j] = (*temp)[j];
+        Shape *tempShape = temp->GetShape();
+
+        for (int ti = 0; ti < timesize; ti++){
+            for(int co=0; co < colsize; co++){
+              (*result)[Index5D(resultShape, ti, i, 0, 0, co)] = (*temp)[Index5D(tempShape, ti, 0, 0, 0, co)];
+            }
+        }
 
         delete temp;
         temp = NULL;
     }
-
-    // std::cout << result << '\n';
-
-
     // concatenate all data;
     // and pop data on queue;
 

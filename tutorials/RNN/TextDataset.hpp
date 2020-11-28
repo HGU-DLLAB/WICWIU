@@ -5,12 +5,15 @@
 #include <string.h>
 
 #include "../../WICWIU_src/Tensor.hpp"
+#include "../../WICWIU_src/DataLoader.hpp"
+
+#define DATATIME        500
 
 using namespace std;
 
 enum OPTION {
     ONEHOT,
-    CBOW
+    //CBOW
 };
 
 
@@ -26,7 +29,7 @@ void MakeOneHotVector(int* onehotvector, int vocab_size, int index){
 
 
 template<typename DTYPE>
-class TextDataset {
+class TextDataset : public Dataset<DTYPE> {
 private:
 
     char* vocab ;
@@ -35,12 +38,21 @@ private:
     int vocab_size;
     int text_length;
 
-    Tensor<DTYPE>* input;
-    Tensor<DTYPE>* label;
+    Tensor<DTYPE>* m_input;
+    Tensor<DTYPE>* m_label;
 
     OPTION option;
 
     int VOCAB_LENGTH;
+
+    //dataloader랑 같이 하기
+    DTYPE **m_aaInput;
+    DTYPE **m_aaLabel;
+
+    int m_numOfInput;
+
+    int m_dimOfInput;
+    int m_dimOfLabel;
 
 public:
     TextDataset(string File_Path, int vocab_length, OPTION pOption) {
@@ -50,12 +62,21 @@ public:
         vocab_size = 0;
         text_length = 0;
 
-        input = NULL;
-        label = NULL;
+        m_input = NULL;
+        m_label = NULL;
 
         option = pOption;
 
         VOCAB_LENGTH = vocab_length;
+
+        m_aaInput = NULL;
+        m_aaLabel = NULL;
+
+        m_numOfInput = 0;
+
+        m_dimOfInput = 0;
+        m_dimOfLabel = 0;
+
 
         Alloc(File_Path);
     }
@@ -84,19 +105,33 @@ public:
 
     int                                   GetTextLength();
 
-    int                                   GetVocabLength();
+    int                                   GetVocabSize();
 
+    char*                                 GetVocab();
+
+    virtual std::vector<Tensor<DTYPE> *>* GetData(int idx);
+
+    virtual int                           GetLength();
 
 };
 
 template<typename DTYPE> void TextDataset<DTYPE>::Alloc(string File_Path) {
 
     vocab = new char[VOCAB_LENGTH];
+
     //File_Reader
     FileReader(File_Path);
 
+    m_dimOfInput = DATATIME;
+
+    m_numOfInput = text_length/DATATIME;         //drop remainder
+    m_aaInput = new DTYPE *[m_numOfInput];
+    m_aaLabel = new DTYPE *[m_numOfInput];
+
     //make_vocab
     MakeVocab();
+
+    m_dimOfLabel = vocab_size;
 
     //make_Input_data
     MakeInputData();
@@ -117,7 +152,6 @@ template<typename DTYPE> void TextDataset<DTYPE>::FileReader(string pFile_Path) 
 
     if(fin.is_open()){
 
-
       fin.seekg(0, ios::end);
       text_length = fin.tellg();
       fin.seekg(0, ios::beg);
@@ -125,10 +159,6 @@ template<typename DTYPE> void TextDataset<DTYPE>::FileReader(string pFile_Path) 
       TextData = new char[text_length];
 
       fin.read(TextData, text_length);
-
-        for(int i=0; i<text_length; i++)
-            TextData[i] = tolower(TextData[i]);
-
 
     }
     fin.close();
@@ -160,16 +190,15 @@ template<typename DTYPE> void TextDataset<DTYPE>::MakeVocab(){
 
 template<typename DTYPE> void TextDataset<DTYPE>::MakeInputData(){
 
-    if(option == ONEHOT){
-        int* onehotvector = new int[vocab_size];
+    int index=0;
 
-        input = new Tensor<DTYPE>(text_length, 1, 1, 1, vocab_size);
+    for (int i = 0; i < m_numOfInput; i++) {
 
-        for(int i=0; i<text_length; i++){
-            MakeOneHotVector(onehotvector, vocab_size, char2index(TextData[i]));
-            for(int j=0; j<vocab_size; j++){
-                (*input)[Index5D(input->GetShape(), i, 0, 0, 0, j)] = onehotvector[j];
-            }
+        m_aaInput[i] = new DTYPE[m_dimOfInput];
+
+        for(int j=0; j<DATATIME; j++){
+            m_aaInput[i][j] = char2index(TextData[index]);
+            index ++;
         }
     }
 
@@ -177,27 +206,49 @@ template<typename DTYPE> void TextDataset<DTYPE>::MakeInputData(){
 
 template<typename DTYPE> void TextDataset<DTYPE>::MakeLabelData(){
 
+/*
     if(option == ONEHOT){
         int* onehotvector = new int[vocab_size];
 
-        label = new Tensor<float>(text_length, 1, 1, 1, vocab_size);
+        m_label = new Tensor<float>(text_length, 1, 1, 1, vocab_size);
 
         for(int i=0; i<text_length; i++){
 
+            //마지막 data
             if(i==text_length-1){
                 MakeOneHotVector(onehotvector, vocab_size, vocab_size-1);
                 for(int j=0; j<vocab_size; j++){
-                    (*label)[Index5D(label->GetShape(), i, 0, 0, 0, j)] = onehotvector[j];
+                    (*m_label)[Index5D(m_label->GetShape(), i, 0, 0, 0, j)] = onehotvector[j];
               }
               continue;
             }
 
             MakeOneHotVector(onehotvector, vocab_size, char2index(TextData[i+1]));
             for(int j=0; j<vocab_size; j++){
-                (*label)[Index5D(label->GetShape(), i, 0, 0, 0, j)] = onehotvector[j];
+                (*m_label)[Index5D(m_label->GetShape(), i, 0, 0, 0, j)] = onehotvector[j];
             }
         }
     }
+*/
+
+    int index=1;
+
+    for (int i = 0; i < m_numOfInput; i++) {
+
+        m_aaLabel[i] = new DTYPE[m_dimOfInput];
+
+        for(int j=0; j<DATATIME; j++){
+              if( (i+1)*index == text_length){
+                  m_aaLabel[i][j] = vocab_size-1;
+              } else{
+                m_aaLabel[i][j] = char2index(TextData[index]);
+                index ++;
+            }
+        }
+    }
+
+
+
 }
 
 template<typename DTYPE> int TextDataset<DTYPE>::char2index(char c){
@@ -211,22 +262,61 @@ template<typename DTYPE> int TextDataset<DTYPE>::char2index(char c){
 
 template<typename DTYPE> char TextDataset<DTYPE>::index2char(int index){
 
-    return vocab[index];
+    if(index == vocab_size-1)
+        return 'E';
+    else
+        return vocab[index];
+}
+
+template<typename DTYPE> char* TextDataset<DTYPE>::GetVocab(){
+
+    return vocab;
 }
 
 template<typename DTYPE> Tensor<DTYPE>* TextDataset<DTYPE>::GetInputData(){
 
-    return input;
+    return m_input;
 }
 
 template<typename DTYPE> Tensor<DTYPE>* TextDataset<DTYPE>::GetLabelData(){
-    return label;
+    return m_label;
 }
 
 template<typename DTYPE> int TextDataset<DTYPE>::GetTextLength(){
     return text_length;
 }
 
-template<typename DTYPE> int TextDataset<DTYPE>::GetVocabLength(){
+template<typename DTYPE> int TextDataset<DTYPE>::GetVocabSize(){
     return vocab_size;
+}
+
+
+template<typename DTYPE> std::vector<Tensor<DTYPE> *> *TextDataset<DTYPE>::GetData(int idx) {
+
+      std::vector<Tensor<DTYPE> *> *result = new std::vector<Tensor<DTYPE> *>(0, NULL);
+
+      Tensor<DTYPE> *input = Tensor<DTYPE>::Zeros(DATATIME, 1, 1, 1, 1);
+      Tensor<DTYPE> *label = Tensor<DTYPE>::Zeros(DATATIME, 1, 1, 1, m_dimOfLabel);
+
+      for (int i = 0; i < DATATIME; i++) {
+          (*input)[i] = m_aaInput[idx][i];
+      }
+
+      int* onehotvector = new int[vocab_size];
+      for (int i=0; i<DATATIME; i++){
+          MakeOneHotVector(onehotvector, vocab_size, m_aaLabel[idx][i]);
+          for(int j=0; j<vocab_size; j++){
+              (*label)[Index5D(label->GetShape(), i, 0, 0, 0, j)] = onehotvector[j];
+          }
+      }
+
+
+      result->push_back(input);
+      result->push_back(label);
+
+      return result;
+}
+
+template<typename DTYPE> int TextDataset<DTYPE>::GetLength() {
+        return m_numOfInput;
 }

@@ -78,13 +78,18 @@ public:
 
     void                 InputToFeature(int inDim, int noSample, float *pSamples[], int outDim, float *pFeatures[], int batchSize = 32);
 
-    //RNN을 위한 time train과 time test 추가
+    //For RNN
     int                  BPTT(int timesize, int truncated_size);
     int                  BPTT(int timesize);
     int                  BPTTOnCPU(int timesize, int truncated_size);
     int                  BPTTOnCPU(int timesize);
+    int                  BPTTOnGPU(int timesize);
     int                  BPTT_Test(int timesize);
     int                  BPTT_TestOnCPU(int timesize);
+    int                  BPTT_TestOnGPU(int timesize);
+
+    void                 GetCharResult(char *vocab);
+    int                  GenerateSentence(int maxTimeSize, char* vocab, int startIndex, int vocabSize);
 
 
 #ifdef __CUDNN__
@@ -358,6 +363,33 @@ template<typename DTYPE> int NeuralNetwork<DTYPE>::BPTTOnCPU(int timesize) {
 }
 
 
+template<typename DTYPE> int NeuralNetwork<DTYPE>::BPTTOnGPU(int timesize) {
+#ifdef __CUDNN__
+    this->ResetResult();
+    this->ResetGradient();
+    this->ResetLossFunctionResult();
+    this->ResetLossFunctionGradient();
+
+    this->ForwardPropagateOnGPU();
+    for(int i=0; i<timesize; i++){
+      m_aLossFunction->ForwardPropagateOnGPU(i);
+    }
+
+    for(int j=timesize-1; j>=0; j--){
+      m_aLossFunction->BackPropagateOnGPU(j);
+    }
+
+    this->BackPropagateOnGPU();
+
+    m_aOptimizer->UpdateParameterOnGPU();
+#else  // __CUDNN__
+    std::cout << "There is no GPU option!" << '\n';
+    exit(-1);
+#endif  // __CUDNN__
+
+    return TRUE;
+}
+
 template<typename DTYPE> int NeuralNetwork<DTYPE>::BPTTOnCPU(int timesize, int truncated_size) {
 
     int cnt = 0;
@@ -399,6 +431,23 @@ template<typename DTYPE> int NeuralNetwork<DTYPE>::BPTT_TestOnCPU(int timesize) 
       this->ForwardPropagate(i);
       m_aLossFunction->ForwardPropagate(i);
     }
+    return TRUE;
+}
+
+
+template<typename DTYPE> int NeuralNetwork<DTYPE>::BPTT_TestOnGPU(int timesize) {
+#ifdef __CUDNN__
+    this->ResetResult();
+    this->ResetLossFunctionResult();
+
+    for(int i=0; i<timesize; i++){
+      this->ForwardPropagateOnGPU(i);
+      m_aLossFunction->ForwardPropagateOnGPU(i);
+    }
+#else  // __CUDNN__
+    std::cout << "There is no GPU option!" << '\n';
+    exit(-1);
+#endif  // __CUDNN__
     return TRUE;
 }
 
@@ -866,6 +915,71 @@ template<typename DTYPE> void NeuralNetwork<DTYPE>::SetDeviceGPUOnNeuralNetwork(
  */
 template<typename DTYPE> int NeuralNetwork<DTYPE>::SetDeviceID(unsigned int idOfDevice) {
     m_idOfDevice = idOfDevice;
+    return TRUE;
+}
+
+
+template<typename DTYPE> void NeuralNetwork<DTYPE>::GetCharResult(char* vocab) {
+
+    Operator<DTYPE> *result = GetResultOperator();
+    int batchsize = result->GetResult()->GetBatchSize();
+    int timesize  = result->GetResult()->GetTimeSize();
+    int numOfClass = result->GetResult()->GetColSize();
+
+    Tensor<DTYPE> *pred = result->GetResult();
+    Shape *predShape  = pred->GetShape();
+
+    int pred_index = 0;
+
+    for (int ba = 0; ba < batchsize; ba++) {
+        for (int ti = 0; ti < timesize; ti++) {
+            pred_index = GetMaxIndex(pred, ba, ti, numOfClass);
+            std::cout<<vocab[pred_index];
+        }
+    }
+}
+
+
+template<typename DTYPE> int NeuralNetwork<DTYPE>::GenerateSentence(int maxTimeSize, char* vocab, int startIndex, int vocabSize) {
+
+    std::ofstream fout("result.txt", std::ios::app);
+
+    this->ResetResult();
+    this->ResetLossFunctionResult();
+
+
+    Tensor<DTYPE> *pred = GetResultOperator()->GetResult();
+    Shape *predShape  = pred->GetShape();
+
+    Tensor<DTYPE> *input  = this->GetInput()[0]->GetResult();
+    Shape *inputShape = input->GetShape();
+
+    //startChar
+    (*input)[Index5D(inputShape, 0, 0, 0, 0, 0)] = startIndex;
+
+
+    for(int ti=0; ti<maxTimeSize; ti++){
+
+        this->ForwardPropagate(ti);
+
+
+        int pred_index = GetMaxIndex(pred, 0, ti, vocabSize);
+
+        if( pred_index == vocabSize-1)
+          break;
+
+        if(ti != maxTimeSize-1){
+            (*input)[Index5D(inputShape, ti+1, 0, 0, 0, 0)] = pred_index;
+        }
+
+        if(fout.is_open()){
+            fout<<vocab[pred_index];
+        }
+
+    }
+
+    fout.close();
+
     return TRUE;
 }
 

@@ -11,9 +11,9 @@
 
 using namespace std;
 
-#define EMBEDDIM               128
-#define TIME                   500
-#define BATCH                  10
+#define EMBEDDIM               64
+#define TIME                   100
+#define BATCH                  5
 #define EPOCH                  5
 #define MAX_TRAIN_ITERATION    (60000 / BATCH)
 #define MAX_TEST_ITERATION     (10000 / BATCH)
@@ -27,7 +27,7 @@ int main(int argc, char const *argv[]) {
     clock_t startTime = 0, endTime = 0;
     double  nProcessExcuteTime = 0;
 
-    TextDataset<float> *dataset = new TextDataset<float>("Data/last2.txt", 100, ONEHOT);     //char단위
+    TextDataset<float> *dataset = new TextDataset<float>("Data/test.txt", 100, ONEHOT);     //char단위
 
     DataLoader<float> * train_dataloader = new DataLoader<float>(dataset, BATCH, TRUE, 20, FALSE);
 

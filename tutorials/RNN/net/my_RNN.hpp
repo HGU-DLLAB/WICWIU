@@ -18,8 +18,8 @@ public:
 
         // ======================= layer 1=======================
         //out = new RecurrentLayer<float>(out, embedding_dim, 64, vocab_length, TRUE, "Recur_1");
-        out = new LSTM2Layer<float>(out, embedding_dim, 512, vocab_length, TRUE, "Recur_1");
-        //out = new GRULayer<float>(out, embedding_dim, 512, vocab_length, TRUE, "Recur_1");
+        //out = new LSTM2Layer<float>(out, embedding_dim, 128, vocab_length, TRUE, "Recur_1");
+        out = new GRULayer<float>(out, embedding_dim, 128, vocab_length, TRUE, "Recur_1");
 
         // // ======================= layer 2=======================
         // out = new Linear<float>(out, 5 * 5 * 20, 1024, TRUE, "Fully-Connected_1");

@@ -7,7 +7,7 @@
 #include "../../WICWIU_src/Tensor.hpp"
 #include "../../WICWIU_src/DataLoader.hpp"
 
-#define DATATIME        500
+#define DATATIME        100
 
 using namespace std;
 

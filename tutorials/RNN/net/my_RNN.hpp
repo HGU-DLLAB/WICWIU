@@ -7,7 +7,7 @@
 class my_RNN : public NeuralNetwork<float>{
 private:
 public:
-    my_RNN(Tensorholder<float> *x, Tensorholder<float> *label, int vocab_length) {
+    my_RNN(Tensorholder<float> *x, Tensorholder<float> *label, int vocab_length, int embedding_dim) {
         SetInput(2, x, label);
 
         Operator<float> *out = NULL;

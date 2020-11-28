@@ -3,6 +3,7 @@
 
 #include "Utils.hpp"
 #include "Optimizer_utils.hpp"
+#include <fstream>
 
 /*!
  * @class NeuralNetwork 뉴럴 네트워크 모델 생성, 학습 및 평가를 총괄하는 클래스
@@ -801,6 +802,70 @@ template<typename DTYPE> Operator<DTYPE> *NeuralNetwork<DTYPE>::SearchOperator(s
     return NULL;
 }
 
+template<typename DTYPE> void NeuralNetwork<DTYPE>::GetCharResult(char* vocab) {
+
+    Operator<DTYPE> *result = GetResultOperator();
+    int batchsize = result->GetResult()->GetBatchSize();
+    int timesize  = result->GetResult()->GetTimeSize();
+    int numOfClass = result->GetResult()->GetColSize();
+
+    Tensor<DTYPE> *pred = result->GetResult();
+    Shape *predShape  = pred->GetShape();
+
+    int pred_index = 0;
+
+    for (int ba = 0; ba < batchsize; ba++) {
+        for (int ti = 0; ti < timesize; ti++) {
+            pred_index = GetMaxIndex(pred, ba, ti, numOfClass);
+            std::cout<<vocab[pred_index];
+        }
+    }
+}
+
+
+template<typename DTYPE> int NeuralNetwork<DTYPE>::GenerateSentence(int maxTimeSize, char* vocab, int startIndex, int vocabSize) {
+
+    std::ofstream fout("result.txt", std::ios::app);
+
+    this->ResetResult();
+    this->ResetLossFunctionResult();
+
+
+    Tensor<DTYPE> *pred = GetResultOperator()->GetResult();
+    Shape *predShape  = pred->GetShape();
+
+    Tensor<DTYPE> *input  = this->GetInput()[0]->GetResult();
+    Shape *inputShape = input->GetShape();
+
+    //startChar
+    (*input)[Index5D(inputShape, 0, 0, 0, 0, 0)] = startIndex;
+
+
+    for(int ti=0; ti<maxTimeSize; ti++){
+
+        this->ForwardPropagate(ti);
+
+
+        int pred_index = GetMaxIndex(pred, 0, ti, vocabSize);
+
+        if( pred_index == vocabSize-1)
+          break;
+
+        if(ti != maxTimeSize-1){
+            (*input)[Index5D(inputShape, ti+1, 0, 0, 0, 0)] = pred_index;
+        }
+
+        if(fout.is_open()){
+            fout<<vocab[pred_index];
+        }
+
+    }
+
+    fout.close();
+
+    return TRUE;
+}
+
 /*
 template<typename DTYPE> void NeuralNetwork<DTYPE>::InputToFeature(int inDim, int noSample, float *pSamples[], int outDim, float *pFeatures[], int batchSize)
 {
@@ -915,71 +980,6 @@ template<typename DTYPE> void NeuralNetwork<DTYPE>::SetDeviceGPUOnNeuralNetwork(
  */
 template<typename DTYPE> int NeuralNetwork<DTYPE>::SetDeviceID(unsigned int idOfDevice) {
     m_idOfDevice = idOfDevice;
-    return TRUE;
-}
-
-
-template<typename DTYPE> void NeuralNetwork<DTYPE>::GetCharResult(char* vocab) {
-
-    Operator<DTYPE> *result = GetResultOperator();
-    int batchsize = result->GetResult()->GetBatchSize();
-    int timesize  = result->GetResult()->GetTimeSize();
-    int numOfClass = result->GetResult()->GetColSize();
-
-    Tensor<DTYPE> *pred = result->GetResult();
-    Shape *predShape  = pred->GetShape();
-
-    int pred_index = 0;
-
-    for (int ba = 0; ba < batchsize; ba++) {
-        for (int ti = 0; ti < timesize; ti++) {
-            pred_index = GetMaxIndex(pred, ba, ti, numOfClass);
-            std::cout<<vocab[pred_index];
-        }
-    }
-}
-
-
-template<typename DTYPE> int NeuralNetwork<DTYPE>::GenerateSentence(int maxTimeSize, char* vocab, int startIndex, int vocabSize) {
-
-    std::ofstream fout("result.txt", std::ios::app);
-
-    this->ResetResult();
-    this->ResetLossFunctionResult();
-
-
-    Tensor<DTYPE> *pred = GetResultOperator()->GetResult();
-    Shape *predShape  = pred->GetShape();
-
-    Tensor<DTYPE> *input  = this->GetInput()[0]->GetResult();
-    Shape *inputShape = input->GetShape();
-
-    //startChar
-    (*input)[Index5D(inputShape, 0, 0, 0, 0, 0)] = startIndex;
-
-
-    for(int ti=0; ti<maxTimeSize; ti++){
-
-        this->ForwardPropagate(ti);
-
-
-        int pred_index = GetMaxIndex(pred, 0, ti, vocabSize);
-
-        if( pred_index == vocabSize-1)
-          break;
-
-        if(ti != maxTimeSize-1){
-            (*input)[Index5D(inputShape, ti+1, 0, 0, 0, 0)] = pred_index;
-        }
-
-        if(fout.is_open()){
-            fout<<vocab[pred_index];
-        }
-
-    }
-
-    fout.close();
-
     return TRUE;
 }
 

@@ -10,5 +10,6 @@
 #include "Module/LSTMLayer.hpp"
 #include "Module/LSTM2Layer.hpp"
 #include "Module/GRULayer.hpp"
+#include "Module/EmbeddingLayer.hpp"
 
 #endif // ifndef __MODULE_UTIL_H__
